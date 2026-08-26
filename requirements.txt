@@ -8,3 +8,4 @@ python-dotenv
 pillow
 opencv-python-headless
 rembg
+openai-whisper
