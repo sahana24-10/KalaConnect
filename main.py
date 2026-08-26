@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from io import BytesIO
-import whisper
+from faster_whisper import WhisperModel
 import google.generativeai as genai
 from dotenv import load_dotenv
 import subprocess
@@ -20,7 +20,7 @@ import subprocess
 # ============================================
 # FORCE REMBG TO USE SMALLER MODEL
 # ============================================
-os.environ["REMBG_MODEL"] = "u2net"
+os.environ["REMBG_MODEL"] = "u2netp"  # Uses lightweight u2netp model
 
 # Load environment variables
 load_dotenv()
@@ -35,12 +35,13 @@ if GEMINI_API_KEY:
     gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
 # ============================================
-# LOAD WHISPER
+# LOAD FASTER-WHISPER
 # ============================================
 print("=" * 50)
-print("🎙️ Loading Whisper model...")
-whisper_model = whisper.load_model("small")
-print("✅ Whisper model loaded!")
+print("🎙️ Loading Faster-Whisper model...")
+# Using tiny model on CPU with INT8 quantization for minimal RAM footprint
+whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8")
+print("✅ Faster-Whisper model loaded!")
 print("=" * 50)
 
 app = FastAPI(title="KalaConnect API")
@@ -62,26 +63,21 @@ TEMP_DIR.mkdir(exist_ok=True)
 def enhance_image(image_bytes):
     """Image enhancement - ONLY fixes lighting and removes background, preserves colors"""
     
-    # Read image
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     
     if img is None:
         raise ValueError("Could not read image")
     
-    # Convert BGR to RGB for processing
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     
     # ----- STAGE 1: ONLY Fix Lighting (Preserve Colors) -----
-    # Convert to LAB for lighting adjustment only
     lab = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2LAB)
     l, a, b = cv2.split(lab)
     
-    # Apply CLAHE ONLY on L channel (lightness) - preserves color
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     l_enhanced = clahe.apply(l)
     
-    # Merge back - colors remain the same, only lighting improved
     lab_enhanced = cv2.merge([l_enhanced, a, b])
     img_lighting_fixed = cv2.cvtColor(lab_enhanced, cv2.COLOR_LAB2RGB)
     
@@ -89,10 +85,7 @@ def enhance_image(image_bytes):
     img_denoised = cv2.fastNlMeansDenoisingColored(
         cv2.cvtColor(img_lighting_fixed, cv2.COLOR_RGB2BGR), 
         None, 
-        5,  # Lower denoising to preserve details
-        5, 
-        7, 
-        21
+        5, 5, 7, 21
     )
     img_denoised = cv2.cvtColor(img_denoised, cv2.COLOR_BGR2RGB)
     
@@ -100,19 +93,12 @@ def enhance_image(image_bytes):
     try:
         from rembg import remove
         
-        # Convert to PIL for rembg
         img_pil = Image.fromarray(img_denoised)
-        
-        # Remove background - this preserves the subject's colors exactly
         output = remove(img_pil)
-        
-        # Convert back to numpy
         img_no_bg = np.array(output)
         
-        # Create white background
         white_bg = np.full((img_no_bg.shape[0], img_no_bg.shape[1], 3), 255, dtype=np.uint8)
         
-        # Composite with alpha channel - preserves original colors
         if img_no_bg.shape[2] == 4:
             alpha = img_no_bg[:, :, 3] / 255.0
             rgb = img_no_bg[:, :, :3]
@@ -136,7 +122,6 @@ def enhance_image(image_bytes):
         new_height = int(height * scale)
         final_image = cv2.resize(final_image, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
     
-    # Make square with white padding
     h, w = final_image.shape[:2]
     if h != w:
         size = max(h, w)
@@ -146,37 +131,34 @@ def enhance_image(image_bytes):
         padded[pad_h:pad_h+h, pad_w:pad_w+w] = final_image
         final_image = padded
     
-    # Convert to JPEG
     _, encoded = cv2.imencode('.jpg', cv2.cvtColor(final_image, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 92])
     
     return encoded.tobytes()
 
 # ============================================
-# VOICE TRANSCRIPTION
+# VOICE TRANSCRIPTION (FASTER-WHISPER)
 # ============================================
 def transcribe_with_whisper(audio_path):
-    """Transcribe with better language detection"""
+    """Transcribe using Faster-Whisper"""
     try:
-        result = whisper_model.transcribe(
+        segments, info = whisper_model.transcribe(
             str(audio_path),
             language='hi',
             task='translate',
-            fp16=False,
-            verbose=False
+            beam_size=1
         )
         
-        text = result.get('text', '').strip()
+        text = "".join([segment.text for segment in segments]).strip()
         
         if len(text) < 3:
-            result = whisper_model.transcribe(
+            segments, info = whisper_model.transcribe(
                 str(audio_path),
                 language=None,
                 task='translate',
-                fp16=False,
-                verbose=False
+                beam_size=1
             )
-            text = result.get('text', '').strip()
-            detected_lang = result.get('language', 'hi')
+            text = "".join([segment.text for segment in segments]).strip()
+            detected_lang = info.language if hasattr(info, 'language') else 'hi'
         else:
             detected_lang = 'hi'
         
@@ -184,7 +166,7 @@ def transcribe_with_whisper(audio_path):
             "success": True,
             "text": text,
             "detected_language": detected_lang,
-            "confidence": result.get('confidence', 0.8)
+            "confidence": getattr(info, 'language_probability', 0.8)
         }
         
     except Exception as e:
