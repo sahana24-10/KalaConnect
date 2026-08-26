@@ -1,0 +1,123 @@
+# ============================================
+# KalaConnect .gitignore
+# ============================================
+
+# 🔐 SECURITY - NEVER commit these!
+# Environment variables (contains API keys!)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# API keys and secrets
+*.key
+*.pem
+*.crt
+secrets.json
+credentials.json
+
+# 🐍 Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 🧪 Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# 📁 Temporary Files
+temp/
+*.tmp
+*.temp
+*.log
+*.swp
+*.swo
+*~
+
+# 📊 Data and Models
+*.db
+*.sqlite
+*.sqlite3
+*.pkl
+*.pickle
+*.h5
+*.pb
+*.onnx
+
+# 📦 IDE and Editor Files
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+.vim/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# 📊 Test and Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# 📦 Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# 📦 Project Specific
+# KalaConnect temporary files
+temp/
+uploads/
+processed/
+*.jpg.temp
+*.png.temp
+
+# Logs
+logs/
+*.log
+
+# 🗄️ Database
+instance/
+*.db
+
+# 🚀 Deployment
+*.pid
+*.seed
+*.pid.lock
