@@ -11,3 +11,4 @@ pillow
 opencv-python-headless
 rembg
 openai-whisper
+imageio-ffmpeg
