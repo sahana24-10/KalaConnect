@@ -1,3 +1,5 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
 fastapi
 uvicorn
 google-generativeai
@@ -8,6 +10,5 @@ python-dotenv
 pillow
 opencv-python-headless
 rembg
-openai-whisper
-torch
+faster-whisper
 imageio-ffmpeg
